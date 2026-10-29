@@ -1,0 +1,41 @@
+name: Build & Deploy (Admin Panel)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run build          # build fail হলে deploy হবে না
+        env:
+          BACKEND_URL: http://127.0.0.1:8001
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Oracle server over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            export PATH="$PATH:/usr/local/bin:/www/server/nodejs/*/bin"
+            cd /www/wwwroot/akhi-admin
+            git pull origin main
+            echo "BACKEND_URL=http://127.0.0.1:8001" > .env.local
+            npm install --no-audit --no-fund
+            npm run build
+            pm2 describe akhi-admin >/dev/null 2>&1 && pm2 restart akhi-admin || pm2 start "npx next start -p 3003" --name akhi-admin
+            pm2 save
