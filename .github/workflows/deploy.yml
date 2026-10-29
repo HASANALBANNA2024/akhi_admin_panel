@@ -15,7 +15,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm install --no-audit --no-fund
-      - run: npm run build          # build fail হলে deploy হবে না
+      - run: npm run build
         env:
           BACKEND_URL: http://127.0.0.1:8001
 
@@ -23,18 +23,19 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Oracle server over SSH
+      - name: Deploy to Server over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }} # SSH Key ব্যবহার করলে key: ${{ secrets.SERVER_SSH_KEY }}
           script_stop: true
           script: |
             export PATH="$PATH:/usr/local/bin:/www/server/nodejs/*/bin"
-            cd /www/wwwroot/akhi-admin
+            cd /www/wwwroot/akhi_admin_website/akhi_admin_panel
             git pull origin main
             echo "BACKEND_URL=http://127.0.0.1:8001" > .env.local
+            echo "BULKSMS_API_KEY=${{ secrets.SMS_API_KEY }}" >> .env.local
             npm install --no-audit --no-fund
             npm run build
             pm2 describe akhi-admin >/dev/null 2>&1 && pm2 restart akhi-admin || pm2 start "npx next start -p 3003" --name akhi-admin
