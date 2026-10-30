@@ -49,7 +49,7 @@ export default function CategoriesSection() {
   }
 
   async function remove(c) {
-    if (!(await confirm({ title: 'Delete category?', text: `"${c.name}" will be deleted. Categories that still have products can't be deleted.`, confirmText: 'Delete', danger: true }))) return;
+    if (!(await confirm({ title: 'Delete category?', text: `"${c.name}" will be permanently deleted. To only hide it, untick “Visible in the shop” in Edit instead. A category that still has products can't be deleted.`, confirmText: 'Delete', danger: true }))) return;
     try { await api(`/admin/categories/${c.id}`, { method: 'DELETE' }); toast.ok('Category deleted'); reload(); }
     catch (e) { toast.error(e.message); }
   }

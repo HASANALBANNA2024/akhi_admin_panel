@@ -8,7 +8,7 @@
  *   PUT    /admin/products/{id}                        update
  *   PATCH  /admin/products/{id}/stock?stock=           quick stock
  *   PATCH  /admin/products/{id}/active?active=         show / hide
- *   DELETE /admin/products/{id}                        deactivate (soft delete)
+ *   DELETE /admin/products/{id}                        delete permanently (hide = Active switch)
  *   POST   /admin/products/{id}/images                 add image (edit mode)
  *   DELETE /admin/products/{id}/images/{imageId}       remove image (edit mode)
  *   POST   /admin/upload                               upload file
@@ -69,8 +69,8 @@ function ProductList({ onAdd, onEdit }) {
     catch (e) { toast.error(e.message); }
   }
   async function remove(p) {
-    if (!(await confirm({ title: 'Delete product?', text: `"${p.name}" will be hidden from the shop. Past orders keep their history.`, confirmText: 'Delete', danger: true }))) return;
-    try { await api(`/admin/products/${p.id}`, { method: 'DELETE' }); toast.ok('Product removed'); list.reload(); }
+    if (!(await confirm({ title: 'Delete product?', text: `"${p.name}" will be permanently deleted. Past orders keep their history. To only hide it, use the Active switch instead.`, confirmText: 'Delete', danger: true }))) return;
+    try { await api(`/admin/products/${p.id}`, { method: 'DELETE' }); toast.ok('Product deleted'); list.reload(); }
     catch (e) { toast.error(e.message); }
   }
 

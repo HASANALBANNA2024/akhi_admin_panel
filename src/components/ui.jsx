@@ -118,10 +118,13 @@ export function ImageUploader({ value, onChange, max = 8, single = false }) {
     setBusy(true);
     try {
       const added = [];
-      for (const f of files.slice(0, single ? 1 : max - list.length)) added.push(await uploadImage(f));
-      onChange(single ? added : [...list, ...added]);
-    } catch (err) {
-      toast.error(err.message);
+      const failed = [];
+      for (const f of files.slice(0, single ? 1 : max - list.length)) {
+        try { added.push(await uploadImage(f)); } catch (err) { failed.push(`${f.name}: ${err.message}`); }
+      }
+      // keep every image that did upload, even if another one failed
+      if (added.length) await onChange(single ? added : [...list, ...added]);
+      if (failed.length) toast.error(failed.join(' | '));
     } finally { setBusy(false); }
   }
 
