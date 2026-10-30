@@ -145,6 +145,7 @@ function ProductForm({ id, onDone }) {
   const toast = useToast();
   const [f, setF] = useState(EMPTY);
   const [images, setImages] = useState([]);       // urls, in display order
+  const [colors, setColors] = useState([]);       // [{id?, name, hex, stock, images:[urls]}]
   const [idMap, setIdMap] = useState({});          // url -> image id (edit mode)
   const [slugTouched, setSlugTouched] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -162,6 +163,7 @@ function ProductForm({ id, onDone }) {
     const imgs = [...(p.images || [])].sort((a, b) => a.sort_order - b.sort_order);
     setImages(imgs.map((i) => i.url));
     setIdMap(Object.fromEntries(imgs.map((i) => [i.url, i.id])));
+    setColors((p.colors || []).map((c) => ({ id: c.id, name: c.name, hex: c.hex || '#e83e8c', stock: c.stock, images: c.images || [] })));
     setSlugTouched(true);
   }, [loaded.data]);
 
@@ -188,18 +190,30 @@ function ProductForm({ id, onDone }) {
     } catch (e) { toast.error(e.message); }
   }
 
+  const setColor = (i, patch) => setColors((a) => a.map((c, k) => (k === i ? { ...c, ...patch } : c)));
+  const addColor = () => setColors((a) => [...a, { name: '', hex: '#e83e8c', stock: 0, images: [] }]);
+  const removeColor = (i) => setColors((a) => a.filter((_, k) => k !== i));
+  const colorStock = colors.reduce((t, c) => t + (parseInt(c.stock, 10) || 0), 0);
+
   async function save(e) {
     e.preventDefault();
     if (!f.name.trim() || !f.slug.trim()) return toast.error('Name and slug are required');
     if (!(Number(f.price) > 0)) return toast.error('Price must be greater than 0');
+    if (colors.some((c) => !c.name.trim())) return toast.error('Every colour needs a name');
+    const names = colors.map((c) => c.name.trim().toLowerCase());
+    if (new Set(names).size !== names.length) return toast.error('Two colours have the same name');
     const body = {
       category_id: f.category_id === '' ? null : Number(f.category_id),
       name: f.name.trim(), slug: f.slug.trim(), description: f.description || null,
       price: Number(f.price),
       compare_at_price: f.compare_at_price === '' ? null : Number(f.compare_at_price),
       cost_price: f.cost_price === '' ? null : Number(f.cost_price),
-      stock: Math.max(0, parseInt(f.stock, 10) || 0), sku: f.sku.trim() || null,
+      stock: colors.length ? colorStock : Math.max(0, parseInt(f.stock, 10) || 0), sku: f.sku.trim() || null,
       is_active: !!f.is_active, image_urls: images,
+      colors: colors.map((c) => ({
+        ...(c.id ? { id: c.id } : {}), name: c.name.trim(), hex: c.hex || null,
+        stock: Math.max(0, parseInt(c.stock, 10) || 0), images: c.images,
+      })),
     };
     setBusy(true);
     try {
@@ -246,6 +260,24 @@ function ProductForm({ id, onDone }) {
             <ImageUploader value={images} onChange={onImages} />
             {id && <div className="muted sm" style={{ marginTop: 6 }}>Added or removed images are saved immediately. Reordering is saved with “Save changes”.</div>}
           </div></div>
+
+          <div className="card"><div className="hd"><h3>Colours</h3><button type="button" className="btn sm" onClick={addColor}><Icon name="plus" size={14} /> Add colour</button></div><div className="bd">
+            {colors.length === 0 && <div className="muted sm">No colours. Add one if this product comes in different colours: each colour has its own photos and stock, and the shop shows a colour button that swaps the main photo.</div>}
+            {colors.map((c, i) => (
+              <div key={c.id || `n${i}`} style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <div className="flex center gap" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+                  <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(c.hex || '') ? c.hex : '#e83e8c'} onChange={(e) => setColor(i, { hex: e.target.value })}
+                    aria-label="Colour" style={{ width: 40, height: 40, padding: 0, border: '1px solid var(--line)', borderRadius: 10, background: 'none' }} />
+                  <input className="input" style={{ flex: 1, minWidth: 140 }} placeholder="Colour name, e.g. Red" value={c.name} maxLength={60} onChange={(e) => setColor(i, { name: e.target.value })} />
+                  <input className="input" style={{ width: 100 }} type="number" min="0" placeholder="Stock" value={c.stock} onChange={(e) => setColor(i, { stock: e.target.value })} aria-label="Stock of this colour" />
+                  <button type="button" className="btn sm danger" onClick={() => removeColor(i)} aria-label="Remove colour"><Icon name="trash" size={14} /></button>
+                </div>
+                <ImageUploader value={c.images} onChange={(a) => setColor(i, { images: a })} max={6} />
+                <div className="muted sm" style={{ marginTop: 4 }}>Photos of this colour. The first one replaces the main photo when the customer taps the colour.</div>
+              </div>
+            ))}
+            {colors.length > 0 && <div className="muted sm">Total stock (sum of colours): <b>{colorStock}</b>. Saved with “{id ? 'Save changes' : 'Create product'}”.</div>}
+          </div></div>
         </div>
 
         <div className="grid" style={{ alignContent: 'start' }}>
@@ -257,7 +289,7 @@ function ProductForm({ id, onDone }) {
           </div></div>
           <div className="card"><div className="hd"><h3>Inventory</h3></div><div className="bd">
             <div className="row2">
-              <Field label="Stock"><input className="input" type="number" min="0" value={f.stock} onChange={set('stock')} /></Field>
+              <Field label="Stock" hint={colors.length ? 'Taken from the colours below' : undefined}><input className="input" type="number" min="0" value={colors.length ? colorStock : f.stock} onChange={set('stock')} disabled={colors.length > 0} /></Field>
               <Field label="SKU"><input className="input" value={f.sku} onChange={set('sku')} /></Field>
             </div>
             <label className="check"><input type="checkbox" checked={f.is_active} onChange={set('is_active')} /> Visible in the shop</label>
